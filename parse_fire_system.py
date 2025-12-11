@@ -366,10 +366,10 @@ def extract_data_from_pdf():
     return rungs, tag_descriptions
 
 def build_alarm_summary(tag_descriptions):
-    """Build alarm summary data from tags"""
+    """Build alarm summary data from tags - only includes entries with 'alarm' in description"""
     alarms = []
 
-    # Define alarm tags to extract
+    # Define all potential alarm tags to extract
     alarm_tags = [
         # Fire Alarms
         ('B3:0/0', 'Fire Alarm Zone 1'),
@@ -411,20 +411,22 @@ def build_alarm_summary(tag_descriptions):
         ('O:0/0', 'Deluge Valve Zone 2 Open'),
     ]
 
+    # Filter to only include entries with "alarm" in the description (case-insensitive)
     for tag_addr, description in alarm_tags:
-        alarms.append({
-            'Tag No': tag_addr,
-            'P & ID': '',
-            'Service Description': description,
-            'Range': '',
-            'EU': '',
-            'Normal Operating Conditions': '',
-            'HH': '',
-            'H': '',
-            'L': '',
-            'LL': '',
-            'Engineering Notes': ''
-        })
+        if 'alarm' in description.lower():
+            alarms.append({
+                'Tag No': tag_addr,
+                'P & ID': '',
+                'Service Description': description,
+                'Range': '',
+                'EU': '',
+                'Normal Operating Conditions': '',
+                'HH': '',
+                'H': '',
+                'L': '',
+                'LL': '',
+                'Engineering Notes': ''
+            })
 
     return alarms
 
@@ -502,7 +504,7 @@ def generate_alarm_summary_excel(alarms, output_file):
     # Header row
     headers = [
         'Tag No', 'P & ID', 'Service Description', 'Range', 'EU',
-        'Normal Operating\\nConditions', 'HH', 'H', 'L', 'LL', 'Engineering Notes'
+        'Normal Operating\nConditions', 'HH', 'H', 'L', 'LL', 'Engineering Notes'
     ]
 
     ws.append(headers)
@@ -581,11 +583,11 @@ def generate_cause_effect_excel(interlocks, tag_descriptions, output_file):
     ws.append(row1)
 
     # Row 2: Effect tag addresses with descriptions
-    row2 = ['', '', '', '', '', ''] + [f'{tag}\\n{tag_descriptions.get(tag, "")}' for tag in effect_columns]
+    row2 = ['', '', '', '', '', ''] + [f'{tag}\n{tag_descriptions.get(tag, "")}' for tag in effect_columns]
     ws.append(row2)
 
     # Row 3: Column headers
-    row3 = ['Interlock\\nNo', 'Tag No', 'Service Description', 'Range', 'Pre-Trip\\n(H or L)', 'Trip\\n(HH or LL)'] + [''] * len(effect_columns)
+    row3 = ['Interlock\nNo', 'Tag No', 'Service Description', 'Range', 'Pre-Trip\n(H or L)', 'Trip\n(HH or LL)'] + [''] * len(effect_columns)
     ws.append(row3)
 
     # Row 4: CAUSE label and P & ID labels
@@ -614,7 +616,7 @@ def generate_cause_effect_excel(interlocks, tag_descriptions, output_file):
     # Format row 2 - Effect tags
     for idx, tag in enumerate(effect_columns):
         cell = ws.cell(row=2, column=7 + idx)
-        cell.value = f'{tag}\\n{tag_descriptions.get(tag, "")}'
+        cell.value = f'{tag}\n{tag_descriptions.get(tag, "")}'
         cell.fill = effect_fill
         cell.font = Font(size=9)
         cell.alignment = Alignment(wrap_text=True, horizontal='center', vertical='center')
