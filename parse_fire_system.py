@@ -578,20 +578,20 @@ def generate_cause_effect_excel(interlocks, tag_descriptions, output_file):
     effect_columns = sorted(list(all_effects), key=lambda x: (x.split(':')[0], int(x.split(':')[1].split('/')[0]), int(x.split('/')[1])))
 
     # Create header structure similar to example
-    # Row 1: Title row with "EFFECT" label
-    row1 = ['', '', '', '', '', '', 'EFFECT'] + [''] * len(effect_columns)
+    # Row 1: Title row with "EFFECT" label and service descriptions
+    row1 = ['', '', '', '', '', '', 'EFFECT'] + [tag_descriptions.get(tag, '') for tag in effect_columns]
     ws.append(row1)
 
-    # Row 2: Effect tag addresses with descriptions
-    row2 = ['', '', '', '', '', ''] + [f'{tag}\n{tag_descriptions.get(tag, "")}' for tag in effect_columns]
+    # Row 2: "Tag No" label and actual tag numbers
+    row2 = ['', '', '', '', '', '', 'Tag No'] + list(effect_columns)
     ws.append(row2)
 
-    # Row 3: Column headers
-    row3 = ['Interlock\nNo', 'Tag No', 'Service Description', 'Range', 'Pre-Trip\n(H or L)', 'Trip\n(HH or LL)'] + [''] * len(effect_columns)
+    # Row 3: Column headers for CAUSE side, blank for EFFECT side
+    row3 = ['Interlock\nNo', 'Tag No', 'Service Description', 'Range', 'Pre-Trip\n(H or L)', 'Trip\n(HH or LL)', ''] + [''] * len(effect_columns)
     ws.append(row3)
 
-    # Row 4: CAUSE label and P & ID labels
-    row4 = ['CAUSE', '', '', '', '', ''] + ['P & ID'] * len(effect_columns)
+    # Row 4: CAUSE label, no P & ID labels
+    row4 = ['CAUSE', '', '', '', '', '', ''] + [''] * len(effect_columns)
     ws.append(row4)
 
     # Formatting
@@ -605,21 +605,32 @@ def generate_cause_effect_excel(interlocks, tag_descriptions, output_file):
         bottom=Side(style='thin')
     )
 
-    # Format row 1 - EFFECT label
-    for col in range(7, 7 + len(effect_columns)):
-        cell = ws.cell(row=1, column=col)
+    # Format row 1 - EFFECT label (column G) and service descriptions
+    cell = ws.cell(row=1, column=7)
+    cell.fill = effect_fill
+    cell.font = Font(bold=True)
+    cell.alignment = Alignment(horizontal='center', vertical='center')
+    cell.border = thin_border
+
+    for idx, tag in enumerate(effect_columns):
+        cell = ws.cell(row=1, column=8 + idx)
         cell.fill = effect_fill
-        cell.font = Font(bold=True)
-        cell.alignment = Alignment(horizontal='center', vertical='center')
+        cell.font = Font(size=10, bold=True)
+        cell.alignment = Alignment(wrap_text=True, horizontal='center', vertical='center')
         cell.border = thin_border
 
-    # Format row 2 - Effect tags
+    # Format row 2 - "Tag No" label (column G) and tag numbers
+    cell = ws.cell(row=2, column=7)
+    cell.fill = effect_fill
+    cell.font = Font(bold=True, size=9)
+    cell.alignment = Alignment(horizontal='center', vertical='center')
+    cell.border = thin_border
+
     for idx, tag in enumerate(effect_columns):
-        cell = ws.cell(row=2, column=7 + idx)
-        cell.value = f'{tag}\n{tag_descriptions.get(tag, "")}'
+        cell = ws.cell(row=2, column=8 + idx)
         cell.fill = effect_fill
         cell.font = Font(size=9)
-        cell.alignment = Alignment(wrap_text=True, horizontal='center', vertical='center')
+        cell.alignment = Alignment(horizontal='center', vertical='center')
         cell.border = thin_border
 
     # Format row 3 - Headers
@@ -630,18 +641,16 @@ def generate_cause_effect_excel(interlocks, tag_descriptions, output_file):
         cell.alignment = Alignment(wrap_text=True, horizontal='center', vertical='center')
         cell.border = thin_border
 
-    # Format row 4 - CAUSE and P & ID
+    # Format row 4 - CAUSE label only (no P & ID in effect columns)
     cell = ws.cell(row=4, column=1)
     cell.fill = cause_fill
     cell.font = Font(bold=True)
     cell.alignment = Alignment(horizontal='center', vertical='center')
     cell.border = thin_border
 
-    for col in range(7, 7 + len(effect_columns)):
+    # Apply borders to remaining cells in row 4
+    for col in range(2, 8 + len(effect_columns)):
         cell = ws.cell(row=4, column=col)
-        cell.fill = header_fill
-        cell.font = Font(size=9)
-        cell.alignment = Alignment(horizontal='center', vertical='center')
         cell.border = thin_border
 
     # Set row heights
@@ -658,7 +667,8 @@ def generate_cause_effect_excel(interlocks, tag_descriptions, output_file):
             interlock['Service Description'],
             interlock['Range'],
             interlock['Pre-Trip (H or L)'],
-            interlock['Trip (HH or LL)']
+            interlock['Trip (HH or LL)'],
+            ''  # Empty column for the label column (G)
         ]
 
         # Add effect markers
@@ -673,7 +683,7 @@ def generate_cause_effect_excel(interlocks, tag_descriptions, output_file):
         # Apply borders and formatting to data row
         for col_idx, cell in enumerate(ws[ws.max_row], 1):
             cell.border = thin_border
-            if col_idx >= 7:  # Effect columns
+            if col_idx >= 8:  # Effect columns (now starting at column 8 due to label column)
                 cell.alignment = Alignment(horizontal='center', vertical='center')
                 if cell.value == 'X':
                     cell.font = Font(bold=True)
@@ -685,11 +695,12 @@ def generate_cause_effect_excel(interlocks, tag_descriptions, output_file):
     ws.column_dimensions['D'].width = 12
     ws.column_dimensions['E'].width = 12
     ws.column_dimensions['F'].width = 12
+    ws.column_dimensions['G'].width = 15  # Label column
 
-    # Set effect column widths
+    # Set effect column widths (starting from H)
     for i, tag in enumerate(effect_columns):
-        col_letter = chr(ord('G') + i)
-        ws.column_dimensions[col_letter].width = 18
+        col_letter = chr(ord('H') + i)
+        ws.column_dimensions[col_letter].width = 20
 
     wb.save(output_file)
     print(f'✓ Cause & Effect Matrix saved to: {output_file}')
