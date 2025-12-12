@@ -523,46 +523,17 @@ def generate_alarm_summary_excel(alarms, output_file, template_file=None):
         # Row 20 = Example row (to be replaced with first data row)
         # Data starts at row 20
         
+        HEADER_ROW = 19
         DATA_START_ROW = 20
+        END_ROW = 67  # End of document area
         
-        # Unmerge cells in the data area to allow writing
-        # Find and unmerge any merged cells starting from row 20
+        # Unmerge cells in the data area to allow writing (row 19+ for headers and data)
         merged_ranges_to_remove = []
         for merged_range in ws.merged_cells.ranges:
-            if merged_range.min_row >= DATA_START_ROW:
+            if merged_range.min_row >= HEADER_ROW:
                 merged_ranges_to_remove.append(merged_range)
         for merged_range in merged_ranges_to_remove:
             ws.unmerge_cells(str(merged_range))
-        
-        # Get the style from the example row (row 20) to apply to data rows
-        example_styles = {}
-        for col in range(1, 14):  # Columns A-M
-            cell = ws.cell(row=DATA_START_ROW, column=col)
-            example_styles[col] = {
-                'font': Font(
-                    name=cell.font.name,
-                    size=cell.font.size or 8,
-                    bold=cell.font.bold,
-                    italic=cell.font.italic,
-                    color=cell.font.color
-                ),
-                'fill': PatternFill(
-                    fill_type=cell.fill.fill_type,
-                    start_color=cell.fill.start_color,
-                    end_color=cell.fill.end_color
-                ) if cell.fill.fill_type else None,
-                'border': Border(
-                    left=cell.border.left,
-                    right=cell.border.right,
-                    top=cell.border.top,
-                    bottom=cell.border.bottom
-                ),
-                'alignment': Alignment(
-                    horizontal=cell.alignment.horizontal,
-                    vertical=cell.alignment.vertical,
-                    wrap_text=cell.alignment.wrap_text
-                )
-            }
         
         # Standard black font for data rows
         black_font = Font(size=8, color='000000')
@@ -575,36 +546,114 @@ def generate_alarm_summary_excel(alarms, output_file, template_file=None):
             bottom=Side(style='thin')
         )
         
+        # Thick top and bottom border for header row (columns A-F and K-M have thick bottom, G-J have thick top+bottom)
+        thick_bottom_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thin'),
+            bottom=Side(style='thick')
+        )
+        
+        # Thick top AND bottom border for header row (columns G-M need thick top to match visual)
+        thick_top_bottom_border = Border(
+            left=Side(style='thin'),
+            right=Side(style='thin'),
+            top=Side(style='thick'),
+            bottom=Side(style='thick')
+        )
+        
+        # No border (for cells past column M)
+        no_border = Border()
+        
+        # Grey fill for discrete alarm setpoint columns (G-J: HH, H, L, LL)
+        grey_fill = PatternFill(start_color='C0C0C0', end_color='C0C0C0', fill_type='solid')
+        
+        # Apply borders to header row 19 (columns A-M)
+        # Columns A-F: thick bottom only
+        for col in range(1, 7):  # Columns A-F (1-6)
+            cell = ws.cell(row=HEADER_ROW, column=col)
+            cell.border = thick_bottom_border
+        
+        # Columns G-M: thick top AND bottom (to match other labels)
+        for col in range(7, 14):  # Columns G-M (7-13)
+            cell = ws.cell(row=HEADER_ROW, column=col)
+            cell.border = thick_top_bottom_border
+        
+        # Remove borders past column M in header row
+        for col in range(14, 20):  # Columns N onwards
+            cell = ws.cell(row=HEADER_ROW, column=col)
+            cell.border = no_border
+        
         # Write alarm data starting at row 20 (replacing example row)
         for row_idx, alarm in enumerate(alarms):
             current_row = DATA_START_ROW + row_idx
             
             # Column mapping: A=Tag No, B=P&ID, C=Service Description, D=Range, 
-            # E=EU, F=Normal Operating Conditions, G=HH, H=H, I=L, J=LL, K=Engineering Notes
+            # E=EU, F=Normal Operating Conditions, G=HH, H=H, I=L, J=LL, K-M=Engineering Notes (merged)
+            # For discrete alarms: D, E, F get "-" and G-J get grey shading
             row_data = [
                 alarm['Tag No'],           # A
                 alarm['P & ID'],           # B
                 alarm['Service Description'],  # C
-                alarm['Range'],            # D
-                alarm['EU'],               # E
-                alarm['Normal Operating Conditions'],  # F
-                alarm['HH'],               # G
-                alarm['H'],                # H
-                alarm['L'],                # I
-                alarm['LL'],               # J
-                alarm['Engineering Notes'],  # K
+                '-',                       # D - Range (discrete alarm)
+                '-',                       # E - EU (discrete alarm)
+                '-',                       # F - Normal Operating Conditions (discrete alarm)
+                '',                        # G - HH (grey, empty for discrete)
+                '',                        # H - H (grey, empty for discrete)
+                '',                        # I - L (grey, empty for discrete)
+                '',                        # J - LL (grey, empty for discrete)
+                alarm['Engineering Notes'],  # K (will merge K:M)
             ]
+            
+            # Standard alignment for data rows
+            left_align = Alignment(horizontal='left', vertical='center')
+            center_align = Alignment(horizontal='center', vertical='center')
             
             for col_idx, value in enumerate(row_data, 1):
                 cell = ws.cell(row=current_row, column=col_idx, value=value)
-                # Apply black font and borders (not red from template)
                 cell.font = black_font
                 cell.border = thin_border
-                if col_idx in example_styles:
-                    style = example_styles[col_idx]
-                    if style['fill']:
-                        cell.fill = style['fill']
-                    cell.alignment = style['alignment']
+                
+                # Apply consistent alignment based on column
+                # A, B, C = left aligned text; D, E, F, G-J, K = center aligned
+                if col_idx <= 3:  # A, B, C - left aligned
+                    cell.alignment = left_align
+                else:  # D, E, F, G-J, K - center aligned
+                    cell.alignment = center_align
+                
+                # Apply grey fill to columns G-J (7-10) for discrete alarms
+                if col_idx >= 7 and col_idx <= 10:
+                    cell.fill = grey_fill
+            
+            # Set border on columns L and M (for merge with K)
+            for col in [12, 13]:  # L and M
+                cell = ws.cell(row=current_row, column=col)
+                cell.border = thin_border
+            
+            # Remove borders past column M
+            for col in range(14, 20):  # Columns N onwards
+                cell = ws.cell(row=current_row, column=col)
+                cell.border = no_border
+        
+        # Handle remaining empty rows (from end of data to row 67)
+        last_data_row = DATA_START_ROW + len(alarms)
+        for row in range(last_data_row, END_ROW + 1):
+            # Set thin borders for columns A-M
+            for col in range(1, 14):
+                cell = ws.cell(row=row, column=col)
+                cell.border = thin_border
+                # Apply grey fill to columns G-J
+                if col >= 7 and col <= 10:
+                    cell.fill = grey_fill
+            
+            # Remove borders past column M
+            for col in range(14, 20):
+                cell = ws.cell(row=row, column=col)
+                cell.border = no_border
+        
+        # Merge K:M (Engineering Notes) for header row and all data rows (19-67)
+        for row in range(HEADER_ROW, END_ROW + 1):
+            ws.merge_cells(start_row=row, start_column=11, end_row=row, end_column=13)
         
         # Update the title in the template (rows 16-18 have the title)
         # Replace [UNIT NAME] with PLC name
